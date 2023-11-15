@@ -75,6 +75,7 @@ def spi(
     calibration_year_final: int,
     periodicity: compute.Periodicity,
     fitting_params: Dict = None,
+    cal360: bool = False,
 ) -> np.ndarray:
     """
     Computes SPI (Standardized Precipitation Index).
@@ -103,6 +104,8 @@ def spi(
         contain two arrays, keyed as "alpha" and "beta", and if the
         distribution is Pearson then this dict should contain four arrays keyed
         as "prob_zero", "loc", "scale", and "skew".
+    :param cal360: optional boolean indicating if data with 360-day calendar is passed
+        instead of the default 366-day calendar
     :return SPI values fitted to the gamma distribution at the specified time
         step scale, unitless
     :rtype: 1-D numpy.ndarray of floats of the same length as the input array
@@ -142,7 +145,10 @@ def spi(
     if periodicity is compute.Periodicity.monthly:
         values = utils.reshape_to_2d(values, 12)
     elif periodicity is compute.Periodicity.daily:
-        values = utils.reshape_to_2d(values, 366)
+        if cal360:
+            values = utils.reshape_to_2d(values, 360)
+        else:
+            values = utils.reshape_to_2d(values, 366)
     else:
         raise ValueError(f"Invalid periodicity argument: {periodicity}")
 
@@ -165,6 +171,7 @@ def spi(
             periodicity,
             alphas,
             betas,
+            cal360=cal360
         )
     elif distribution is Distribution.pearson:
         # get (optional) fitting parameters if provided
