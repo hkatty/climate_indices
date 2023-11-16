@@ -69,15 +69,15 @@ class Periodicity(Enum):
 def _validate_array(
     values: np.ndarray,
     periodicity: Periodicity,
-    cal360: bool = False,
+    days_in_year: int = 366,
 ) -> np.ndarray:
     """
     Basic data cleaning and validation.
 
     :param values: array of values to be used as input
     :param periodicity: specifies whether data is monthly or daily
-    :param cal360: optional boolean indicating if data with 360-day calendar is passed
-        instead of the default 366-day calendar
+    :param days_in_year: optional integer indicating number of days in a year
+        (same fixed value for all years), defaults to 366 for 366-day calendar
     :return: data array corresponding to the input array converted to
         the correct shape for the specified periodicity
     """
@@ -96,18 +96,15 @@ def _validate_array(
 
         elif periodicity is Periodicity.daily:
             # we've been passed a 1-D array with shape (days),
-            # reshape it to 2-D with shape (years, 366 or 360)
-            if cal360:
-                values = utils.reshape_to_2d(values, 360)
-            else:
-                values = utils.reshape_to_2d(values, 366)
+            # reshape it to 2-D with shape (years, as defined by days_in_year)
+            values = utils.reshape_to_2d(values, days_in_year)
 
         else:
             message = "Unsupported periodicity argument: '{0}'".format(periodicity)
             _logger.error(message)
             raise ValueError(message)
 
-    elif (len(values.shape) != 2) or (values.shape[1] not in (12, 366, 360)):
+    elif (len(values.shape) != 2) or (values.shape[1] not in (12, 366, 360, 365)):
         # ((values.shape[1] != 12) and (values.shape[1] != 366)):
 
         # neither a 1-D nor a 2-D array with valid shape was passed in
@@ -647,7 +644,7 @@ def gamma_parameters(
     calibration_start_year: int,
     calibration_end_year: int,
     periodicity: Periodicity,
-    cal360: bool = False,
+    days_in_year: int = 366,
 ) -> (np.ndarray, np.ndarray):
     """
     Computes the gamma distribution parameters alpha and beta.
@@ -667,8 +664,8 @@ def gamma_parameters(
         'daily': array of full years of daily values with 366 days per year,
         as if each year were a leap year and any missing final months of the final
         year filled with NaN values, with array size == (# years * 366)
-    :param cal360: optional boolean indicating if data with 360-day calendar is passed
-        instead of the default 366-day calendar
+    :param days_in_year: optional integer for number of days in each year,
+        defaults to 366 for 366-day calendar
     :return: two 2-D arrays of gamma fitting parameter values, corresponding in size
         and shape of the input array
     :rtype: tuple of two 2-D numpy.ndarrays of floats, alphas and betas
@@ -680,10 +677,7 @@ def gamma_parameters(
         if periodicity is Periodicity.monthly:
             shape = (12,)
         elif periodicity is Periodicity.daily:
-            if cal360:
-                shape = (360,)
-            else:
-                shape = (366,)
+            shape = (days_in_year,)
         else:
             raise ValueError("Unsupported periodicity: {periodicity}".format(periodicity=periodicity))
         alphas = np.full(shape=shape, fill_value=np.NaN)
@@ -691,7 +685,7 @@ def gamma_parameters(
         return alphas, betas
 
     # validate (and possibly reshape) the input array
-    values = _validate_array(values, periodicity, cal360=cal360)
+    values = _validate_array(values, periodicity, days_in_year=days_in_year)
 
     # replace zeros with NaNs
     values[values == 0] = np.NaN
@@ -777,7 +771,7 @@ def transform_fitted_gamma(
     periodicity: Periodicity,
     alphas: np.ndarray = None,
     betas: np.ndarray = None,
-    cal360: bool = False,
+    days_in_year: int = 366,
 ) -> np.ndarray:
     """
     Fit values to a gamma distribution and transform the values to corresponding
@@ -800,8 +794,8 @@ def transform_fitted_gamma(
         year filled with NaN values, with array size == (# years * 366)
     :param alphas: pre-computed gamma fitting parameters
     :param betas: pre-computed gamma fitting parameters
-    :param cal360: optional boolean indicating if data with 360-day calendar is passed
-        instead of the default 366-day calendar
+    :param days_in_year: optional integer indicating number of days in a year,
+        defaults to 366 for 366-day calendar
     :return: 2-D array of transformed/fitted values, corresponding in size
         and shape of the input array
     :rtype: numpy.ndarray of floats
@@ -813,7 +807,7 @@ def transform_fitted_gamma(
         return values
 
     # validate (and possibly reshape) the input array
-    values = _validate_array(values, periodicity, cal360=cal360)
+    values = _validate_array(values, periodicity, days_in_year=days_in_year)
 
     # find the percentage of zero values for each time step
     zeros = (values == 0).sum(axis=0)
